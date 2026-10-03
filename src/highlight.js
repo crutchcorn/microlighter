@@ -72,9 +72,9 @@ const noMatch = { indices: [[Infinity, Infinity]] };
 const getCategory = scope => {
   const parts = scope.split(".");
   const [first, second, third] = parts;
-  const last = /** @type {string} */ (parts.at(-1));
 
   if (first === "markup" && ["quote", "inserted", "deleted", "raw"].includes(second)) return second;
+  if (first === "meta" && second === "selector") return "selector";
   if (first === "entity" && second === "name") return third;
   if (scope.startsWith("constant.character.entity")) return "character-entity";
   if (parts.includes("numeric")) return "numeric";
@@ -82,10 +82,13 @@ const getCategory = scope => {
   if (parts.includes("attribute-value")) return "attribute-value";
   if (scope.startsWith("string.other.link")) return "link";
 
-  if ([
+  // Real grammars suffix scopes with the language (`keyword.control.at-rule.css`),
+  // so look for these tokens anywhere rather than only at the end.
+  const token = [
     "doctype", "at-rule", "important", "regexp", "boolean",
     "symbol", "operator", "attribute-name"
-  ].includes(last)) return last;
+  ].find(candidate => parts.includes(candidate));
+  if (token) return token;
 
   if ([
     "comment", "string", "constant", "storage", "keyword",

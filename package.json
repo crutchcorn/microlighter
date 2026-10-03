@@ -27,6 +27,7 @@
     "typecheck": "tsc --noEmit",
     "size": "node scripts/report-size.mjs",
     "sync-grammars": "./sync-grammars.sh",
+    "sync-samples": "node scripts/sync-samples.mjs",
     "prepare": "git config core.hooksPath .githooks",
     "pretest": "./build.sh",
     "test": "node --test test/*.spec.js && playwright test",
