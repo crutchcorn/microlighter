@@ -25,16 +25,24 @@ printf '/// <reference path="./global.d.ts" />\n%s' "$(cat "$element_bundle_type
   > "$element_bundle_types.tmp"
 mv "$element_bundle_types.tmp" "$element_bundle_types"
 
-npx --yes esbuild@0.25.8 "$directory/src/grammars/"*.js \
+# Grammars are Shiki's precompiled modules: they import `oniguruma-to-es` and
+# each other, so bundle them with code splitting to keep shared code in chunks.
+rm -rf "$dist/grammars"
+npx --yes esbuild@0.25.8 "$directory/src/grammars/"*.mjs \
+  --bundle \
+  --splitting \
+  --format=esm \
+  --out-extension:.js=.mjs \
+  --chunk-names="chunks/[name]-[hash]" \
   --minify-whitespace \
   --outdir="$dist/grammars" \
   --log-level=warning
 
 # Every grammar entry point has the same type, so the declarations are emitted
 # here rather than hand-authored once per language.
-for grammar in "$dist"/grammars/*.js; do
-  printf 'import type { Grammar } from "../grammar.js";\n\ndeclare const grammar: Grammar;\nexport default grammar;\n' \
-    > "${grammar%.js}.d.ts"
+for grammar in "$dist"/grammars/*.mjs; do
+  printf 'import type { Grammar } from "../grammar.js";\n\ndeclare const grammar: Grammar[];\nexport default grammar;\n' \
+    > "${grammar%.mjs}.d.mts"
 done
 
 npx --yes esbuild@0.25.8 "$directory/src/themes/"*.css \

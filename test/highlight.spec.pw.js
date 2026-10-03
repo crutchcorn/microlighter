@@ -203,7 +203,7 @@ test.describe("MicroLighter demo site (docs/index.html)", () => {
     const highlighted = await page.evaluate(async () => {
       const root = document.createElement("div");
       root.innerHTML = [
-        '<pre><code id="exported-alias" class="language-jsx">const exported = true;</code></pre>',
+        '<pre><code id="exported-alias" class="language-js">const exported = true;</code></pre>',
         '<pre><code id="custom-alias" class="language-ecmascript">const custom = true;</code></pre>'
       ].join("");
       document.body.append(root);

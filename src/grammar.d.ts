@@ -9,20 +9,27 @@ export type GrammarValue =
   | boolean
   | null
   | undefined
+  | RegExp
   | GrammarValue[]
   | { [key: string]: GrammarValue };
 
-/** A named capture group in a TextMate rule, keyed by capture index. */
+/**
+ * A rule pattern: a TextMate regex source string, or a precompiled `RegExp`
+ * (including oniguruma-to-es `EmulatedRegExp`) as shipped by Shiki.
+ */
+export type GrammarPattern = string | RegExp;
+
+/** A capture group in a TextMate rule, keyed by capture index. */
 export interface GrammarCaptures {
-  [index: string]: { name: string };
+  [index: string]: { name?: string; patterns?: GrammarRule[] };
 }
 
 /** A single TextMate rule: an include, a `match`, or a `begin`/`end` pair. */
 export interface GrammarRule {
   include?: string;
-  match?: string;
-  begin?: string;
-  end?: string;
+  match?: GrammarPattern;
+  begin?: GrammarPattern;
+  end?: GrammarPattern;
   applyEndPatternLast?: boolean;
   name?: string;
   contentName?: string;

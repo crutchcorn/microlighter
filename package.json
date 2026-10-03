@@ -20,12 +20,13 @@
     "./dist/micro-lighter-element.min.js"
   ],
   "sizeLimit": {
-    "dist/microlighter.min.js": 2150
+    "dist/microlighter.min.js": 3000
   },
   "scripts": {
     "build": "./build.sh",
     "typecheck": "tsc --noEmit",
     "size": "node scripts/report-size.mjs",
+    "sync-grammars": "./sync-grammars.sh",
     "prepare": "git config core.hooksPath .githooks",
     "pretest": "./build.sh",
     "test": "node --test test/*.spec.js && playwright test",
@@ -34,6 +35,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
+    "@shikijs/langs-precompiled": "^4.5.0",
+    "oniguruma-to-es": "^4.3.6",
     "typescript": "^7.0.2"
   },
   "engines": {

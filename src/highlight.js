@@ -1,7 +1,7 @@
 import { createGrammarLoader, normalizeLanguage } from "./grammar-dependencies.js";
 
 /**
- * @import { Grammar, GrammarCaptures, GrammarRule } from "./grammar.js"
+ * @import { Grammar, GrammarCaptures, GrammarPattern, GrammarRule } from "./grammar.js"
  */
 
 /**
@@ -123,7 +123,8 @@ const addRange = (node, start, end, scope) => {
 const addCaptures = (node, match, captures = {}) => {
   Object.entries(captures).forEach(([index, capture]) => {
     const offsets = match.indices[+index];
-    if (offsets) addRange(node, ...offsets, capture.name);
+    // Captures may carry nested `patterns` instead of a scope name.
+    if (offsets && capture.name) addRange(node, ...offsets, capture.name);
   });
 };
 
@@ -135,14 +136,42 @@ const addCaptures = (node, match, captures = {}) => {
 const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * Replace TextMate end-pattern backreferences with escaped begin captures.
- * @param {string} pattern
- * @param {Match} beginMatch
- * @returns {string}
+ * Compile a rule pattern for whole-block scanning. Precompiled grammars ship
+ * `RegExp` objects (possibly oniguruma-to-es `EmulatedRegExp`) whose flags are
+ * kept; `m` is added because they were compiled for single-line matching.
+ * @param {GrammarPattern} pattern
+ * @param {string} [source] Replacement source, e.g. with expanded backreferences.
+ * @returns {RegExp}
  */
-const expandEnd = (pattern, beginMatch) => pattern.replace(/\\(\d+)/g, (reference, index) => {
-  return beginMatch[index] === undefined ? reference : escapeRegex(beginMatch[index]);
-});
+const compile = (pattern, source) => {
+  if (typeof pattern === "string") return new RegExp(source ?? pattern, "dgm");
+
+  const flags = pattern.flags.includes("m") ? pattern.flags : `${pattern.flags}m`;
+  if (source === undefined && flags === pattern.flags) return pattern;
+
+  // Rebuild from `source` rather than copying: lazily compiled EmulatedRegExps
+  // have an empty underlying pattern until first use. `rawOptions` is ignored
+  // by plain RegExp and preserves capture emulation for EmulatedRegExp.
+  return new (/** @type {new (s: string, f: string, o?: unknown) => RegExp} */ (pattern.constructor))(
+    source ?? pattern.source,
+    flags,
+    /** @type {{rawOptions?: unknown}} */ (pattern).rawOptions
+  );
+};
+
+/**
+ * Replace TextMate end-pattern backreferences with escaped begin captures.
+ * @param {GrammarPattern} pattern
+ * @param {Match} beginMatch
+ * @returns {RegExp}
+ */
+const expandEnd = (pattern, beginMatch) => {
+  const source = (typeof pattern === "string" ? pattern : pattern.source)
+    .replace(/\\(\d+)/g, (reference, index) =>
+      beginMatch[index] === undefined ? reference : escapeRegex(beginMatch[index])
+    );
+  return compile(pattern, source);
+};
 
 /**
  * Normalize a grammar rule or repository entry to a rule array.
@@ -173,9 +202,9 @@ export const highlightAll = async ({
     normalizeLanguage(getLanguage(codeBlock), languageAliases)
   );
   const grammars = await loadGrammars(languages);
-  /** @type {Map<string, RegExp>} */
+  /** @type {Map<GrammarPattern, RegExp>} */
   const regexes = new Map();
-  /** @type {Map<string, MatchOffsets>} */
+  /** @type {Map<GrammarPattern, MatchOffsets>} */
   let matches = new Map();
 
   highlights.forEach((ranges, category) => {
@@ -186,7 +215,7 @@ export const highlightAll = async ({
   /**
    * Find the next bounded match, reusing compiled grammar expressions and the
    * memoized match for each pattern.
-   * @param {string} pattern
+   * @param {GrammarPattern} pattern
    * @param {Text} node
    * @param {number} start
    * @param {number} end
@@ -196,7 +225,7 @@ export const highlightAll = async ({
     let match = matches.get(pattern);
 
     if (!match || match.indices[0][0] < start) {
-      if (!regexes.has(pattern)) regexes.set(pattern, new RegExp(pattern, "dgm"));
+      if (!regexes.has(pattern)) regexes.set(pattern, compile(pattern));
       const regex = /** @type {RegExp} */ (regexes.get(pattern));
       regex.lastIndex = start;
       match = /** @type {Match | null} */ (regex.exec(node.data)) || noMatch;
@@ -280,7 +309,7 @@ export const highlightAll = async ({
     let winner = null;
 
     contexts.forEach(context => {
-      const pattern = /** @type {string} */ (context.rule.match || context.rule.begin);
+      const pattern = /** @type {GrammarPattern} */ (context.rule.match || context.rule.begin);
       const match = exec(pattern, node, start, end);
       if (!match) return;
 
@@ -300,7 +329,7 @@ export const highlightAll = async ({
    * @param {number} end
    * @param {Grammar} grammar
    * @param {Grammar} [baseGrammar]
-   * @param {{pattern: string, applyEndPatternLast?: boolean} | null} [closing]
+   * @param {{pattern: GrammarPattern, applyEndPatternLast?: boolean} | null} [closing]
    * @returns {{contentEnd: number, end: number, match: Match | null}}
    */
   const scanRegion = (node, rules, start, end, grammar, baseGrammar = grammar, closing = null) => {
@@ -334,7 +363,7 @@ export const highlightAll = async ({
         end,
         ruleGrammar,
         baseGrammar,
-        { pattern: expandEnd(/** @type {string} */ (rule.end), match), applyEndPatternLast: rule.applyEndPatternLast }
+        { pattern: expandEnd(/** @type {GrammarPattern} */ (rule.end), match), applyEndPatternLast: rule.applyEndPatternLast }
       );
 
       if (rule.name) addRange(node, match.indices[0][0], nested.end, rule.name);

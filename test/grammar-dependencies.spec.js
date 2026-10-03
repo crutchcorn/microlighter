@@ -6,16 +6,15 @@ import {
   getExternalLanguages,
   normalizeLanguage
 } from "../src/grammar-dependencies.js";
-import cpp from "../src/grammars/cpp.js";
-import heex from "../src/grammars/heex.js";
-import html from "../src/grammars/html.js";
-import markdown from "../src/grammars/markdown.js";
-import objectiveC from "../src/grammars/objective-c.js";
-import scss from "../src/grammars/scss.js";
-import tsx from "../src/grammars/tsx.js";
-import typescript from "../src/grammars/typescript.js";
-import svelte from "../src/grammars/svelte.js";
-import vue from "../src/grammars/vue.js";
+import cpp from "../src/grammars/cpp.mjs";
+import html from "../src/grammars/html.mjs";
+import markdown from "../src/grammars/markdown.mjs";
+import objectiveC from "../src/grammars/objective-c.mjs";
+import scss from "../src/grammars/scss.mjs";
+import tsx from "../src/grammars/tsx.mjs";
+import typescript from "../src/grammars/typescript.mjs";
+import svelte from "../src/grammars/svelte.mjs";
+import vue from "../src/grammars/vue.mjs";
 
 test("finds external grammar languages in nested rules", () => {
   const grammar = {
@@ -50,23 +49,29 @@ test("recognizes source and text scopes but ignores unsupported includes", () =>
 });
 
 test("normalizes language aliases and preserves canonical names", () => {
-  assert.equal(normalizeLanguage("jsx"), "javascript");
-  assert.equal(normalizeLanguage("sass"), "scss");
+  assert.equal(normalizeLanguage("js"), "javascript");
+  // jsx and sass are standalone Shiki grammars, not aliases.
+  assert.equal(normalizeLanguage("jsx"), "jsx");
+  assert.equal(normalizeLanguage("sass"), "sass");
   assert.equal(normalizeLanguage("python"), "python");
   assert.equal(normalizeLanguage("custom-language"), "custom-language");
 });
 
-test("reports dependencies used by the shipped grammars", () => {
-  assert.deepEqual([...getExternalLanguages(scss)], ["css"]);
-  assert.deepEqual([...getExternalLanguages(markdown)], ["yaml"]);
-  assert.deepEqual([...getExternalLanguages(typescript)], ["js"]);
-  assert.deepEqual([...getExternalLanguages(html)], ["css", "json", "js"]);
-  assert.deepEqual([...getExternalLanguages(cpp)], ["c"]);
-  assert.deepEqual([...getExternalLanguages(tsx)], ["js", "ts"]);
-  assert.deepEqual([...getExternalLanguages(objectiveC)], ["c"]);
-  assert.deepEqual(heex.dependencies, ["html", "elixir"]);
-  assert.deepEqual(svelte.dependencies, ["html", "css", "scss", "javascript", "typescript"]);
-  assert.deepEqual(vue.dependencies, ["html", "css", "scss", "javascript", "typescript"]);
+test("ships required embedded grammars alongside each Shiki grammar", () => {
+  for (const module of [scss, html, cpp, svelte, vue]) {
+    const grammar = module.at(-1);
+    const shipped = module.map(entry => entry.name);
+    for (const embedded of grammar.embeddedLangs ?? []) {
+      assert.ok(shipped.includes(embedded), `${grammar.name} should ship ${embedded}`);
+    }
+  }
+
+  assert.deepEqual(scss.at(-1).embeddedLangs, ["css"]);
+  assert.deepEqual(html.at(-1).embeddedLangs, ["javascript", "css"]);
+  assert.deepEqual(markdown.at(-1).embeddedLangs, []);
+  assert.deepEqual([...getExternalLanguages(typescript.at(-1))], []);
+  assert.deepEqual([...getExternalLanguages(tsx.at(-1))], []);
+  assert.deepEqual([...getExternalLanguages(objectiveC.at(-1))], []);
 });
 
 test("loads external dependencies once and indexes grammars by language and scope", async () => {
@@ -154,7 +159,7 @@ test("indexes grammars by canonical language only", async () => {
   assert.deepEqual(loaded.languages, grammarFixtures);
 });
 
-test("dynamically loads every new canonical grammar and transitively resolves its dependencies", async () => {
+test("dynamically loads every new canonical grammar and indexes its embedded grammars by scope", async () => {
   const load = createGrammarLoader();
   const newLanguages = [
     "sql", "dockerfile", "toml", "c", "cpp", "csharp", "java", "php",
@@ -167,13 +172,12 @@ test("dynamically loads every new canonical grammar and transitively resolves it
     assert.ok(loaded.languages[language], `expected ${language} to load`);
   }
 
-  // cpp reuses the shared C grammar via external includes.
-  assert.ok(loaded.languages.c, "cpp should transitively load c");
+  // Shiki modules bundle their embedded grammars (cpp ships c, glsl, regexp)
+  // which are indexed by scope without becoming requested languages.
   assert.equal(loaded.scopes.get("source.c"), loaded.languages.c);
-
-  // tsx reuses TypeScript and JavaScript via external includes.
-  assert.ok(loaded.languages.javascript, "tsx should transitively load javascript");
-  assert.ok(loaded.languages.typescript, "tsx should transitively load typescript");
+  assert.ok(loaded.scopes.get("source.glsl"), "cpp should index its embedded glsl grammar");
+  assert.equal(loaded.languages.glsl, undefined);
+  assert.equal(loaded.scopes.get("source.tsx"), loaded.languages.tsx);
 });
 
 test("loads normalized first-party aliases by canonical language", async () => {
@@ -185,9 +189,9 @@ test("loads normalized first-party aliases by canonical language", async () => {
   assert.equal(loaded.scopes.get("source.js"), loaded.languages.javascript);
 });
 
-test("dynamically loads every second-batch canonical grammar and transitively resolves its dependencies", async () => {
+test("dynamically loads every second-batch canonical grammar", async () => {
   const load = createGrammarLoader();
-  const newLanguages = ["objective-c", "lua", "dart", "assembly", "perl", "r"];
+  const newLanguages = ["objective-c", "lua", "dart", "asm", "perl", "r"];
 
   const loaded = await load(newLanguages);
 
@@ -195,7 +199,7 @@ test("dynamically loads every second-batch canonical grammar and transitively re
     assert.ok(loaded.languages[language], `expected ${language} to load`);
   }
 
-  // objective-c reuses the shared C grammar via external includes.
-  assert.ok(loaded.languages.c, "objective-c should transitively load c");
-  assert.equal(loaded.scopes.get("source.c"), loaded.languages.c);
+  // lua ships the shared C grammar for its embedded C API blocks.
+  assert.ok(loaded.scopes.get("source.c"), "lua should index its embedded c grammar");
+  assert.equal(loaded.scopes.get("source.objc"), loaded.languages["objective-c"]);
 });
