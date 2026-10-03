@@ -1,2 +1,1 @@
-/* Alias nar for narrat */
-export { default } from './narrat.mjs'
+export { default } from "./narrat.mjs";

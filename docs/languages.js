@@ -73,6 +73,12 @@ const languages = [
     ]
   },
   {
+    "name": "ahk2",
+    "label": "AutoHotkey2",
+    "group": "Scripting & shells",
+    "aliases": []
+  },
+  {
     "name": "angular-html",
     "label": "Angular HTML",
     "group": "Frameworks & templates",

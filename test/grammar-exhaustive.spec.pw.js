@@ -117,8 +117,10 @@ test.describe("Grammar exhaustive fixture (test/fixtures/grammar-exhaustive.html
       };
     });
 
-    expect(componentHighlights.svelteAttributes.some(name => name.startsWith("on:") || name.startsWith("bind:"))).toBe(true);
-    expect(componentHighlights.svelteKeywords.length).toBeGreaterThan(0);
+    // Svelte scopes `bind:` / `on:` directives as keywords, not attribute names.
+    expect(componentHighlights.svelteAttributes.length).toBeGreaterThan(0);
+    expect(componentHighlights.svelteKeywords).toContain("bind");
+    expect(componentHighlights.svelteKeywords).toContain("if");
     expect(componentHighlights.vueAttributes.some(name => /^[@:]|^v-/.test(name))).toBe(true);
     expect(componentHighlights.vueStorage.length).toBeGreaterThan(0);
   });

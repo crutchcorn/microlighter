@@ -1,2 +1,1 @@
-/* Alias surql for surrealql */
-export { default } from './surrealql.mjs'
+export { default } from "./surrealql.mjs";

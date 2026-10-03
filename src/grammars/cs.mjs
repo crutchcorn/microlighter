@@ -1,2 +1,1 @@
-/* Alias cs for csharp */
-export { default } from './csharp.mjs'
+export { default } from "./csharp.mjs";

@@ -1,2 +1,1 @@
-/* Alias chpl for chapel */
-export { default } from './chapel.mjs'
+export { default } from "./chapel.mjs";

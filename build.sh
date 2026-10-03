@@ -41,7 +41,7 @@ npx --yes esbuild@0.25.8 "$directory/src/grammars/"*.mjs \
 # Every grammar entry point has the same type, so the declarations are emitted
 # here rather than hand-authored once per language.
 for grammar in "$dist"/grammars/*.mjs; do
-  printf 'import type { Grammar } from "../grammar.js";\n\ndeclare const grammar: Grammar[];\nexport default grammar;\n' \
+  printf 'import type { Grammar } from "../grammar.js";\n\ndeclare const grammar: Grammar;\nexport default grammar;\n' \
     > "${grammar%.mjs}.d.mts"
 done
 

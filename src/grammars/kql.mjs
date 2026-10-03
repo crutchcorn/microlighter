@@ -1,2 +1,1 @@
-/* Alias kql for kusto */
-export { default } from './kusto.mjs'
+export { default } from "./kusto.mjs";

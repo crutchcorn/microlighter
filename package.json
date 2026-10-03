@@ -26,7 +26,8 @@
     "build": "./build.sh",
     "typecheck": "tsc --noEmit",
     "size": "node scripts/report-size.mjs",
-    "sync-grammars": "./sync-grammars.sh",
+    "sync-grammars": "node scripts/sync-grammars.mjs && node scripts/validate-grammars.mjs",
+    "validate-grammars": "node scripts/validate-grammars.mjs",
     "sync-samples": "node scripts/sync-samples.mjs",
     "prepare": "git config core.hooksPath .githooks",
     "pretest": "./build.sh",
@@ -36,7 +37,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
-    "@shikijs/langs-precompiled": "^4.5.0",
+    "@shikijs/langs": "^4.5.0",
     "oniguruma-to-es": "^4.3.6",
     "typescript": "^7.0.2"
   },

@@ -13,12 +13,8 @@ const loadCanonicalGrammars = async () => {
   for (const file of readdirSync(grammarsDirectory)) {
     if (!file.endsWith(".mjs")) continue;
     const name = file.replace(/\.mjs$/, "");
-    try {
-      const grammar = (await import(new URL(file, grammarsDirectory))).default.at(-1);
-      if (grammar.name === name) canonical.push(name);
-    } catch {
-      // Grammars upstream marks unsupported (ahk2) throw on import.
-    }
+    const grammar = (await import(new URL(file, grammarsDirectory))).default;
+    if (grammar.name === name) canonical.push(name);
   }
   return canonical.sort();
 };

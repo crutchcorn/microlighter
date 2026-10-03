@@ -158,10 +158,9 @@ export const getExternalLanguages = value => {
 };
 
 /**
- * Dynamically import a shipped grammar. Shiki precompiled modules export an
- * array of the grammar's embedded dependencies followed by the grammar itself.
+ * Dynamically import a shipped grammar.
  * @param {string} language
- * @returns {Promise<Grammar | Grammar[] | null>}
+ * @returns {Promise<Grammar | null>}
  */
 const getGrammar = language => import(`./grammars/${language}.mjs`)
   .then(module => module.default)
@@ -169,7 +168,7 @@ const getGrammar = language => import(`./grammars/${language}.mjs`)
 
 /**
  * Create a cached loader that also resolves external grammar dependencies.
- * @param {(language: string) => Promise<Grammar | Grammar[] | null>} [importLanguage]
+ * @param {(language: string) => Promise<Grammar | null>} [importLanguage]
  * @returns {(languages: string[]) => Promise<LoadedGrammars>}
  */
 export const createGrammarLoader = (importLanguage = getGrammar) => {
@@ -180,12 +179,6 @@ export const createGrammarLoader = (importLanguage = getGrammar) => {
     languages: {},
     scopes: new Map()
   };
-  /**
-   * Grammars imported as an array already ship their required embedded
-   * grammars, so their includes are not scanned for further dependencies.
-   * @type {WeakSet<Grammar>}
-   */
-  const selfContained = new WeakSet();
 
   /**
    * Import and index a grammar once for the lifetime of this loader.
@@ -194,17 +187,10 @@ export const createGrammarLoader = (importLanguage = getGrammar) => {
    */
   const loadGrammar = language => {
     if (!loadingLanguages.has(language)) {
-      const grammarModule = importLanguage(language).then(imported => {
-        const entries = Array.isArray(imported) ? imported : [imported];
-        const grammar = entries.at(-1) ?? null;
+      const grammarModule = importLanguage(language).then(grammar => {
         if (grammar) {
           grammars.languages[language] = grammar;
-          if (Array.isArray(imported)) selfContained.add(grammar);
-          // Embedded grammars are only indexed by scope so `languages` stays
-          // keyed by the names that were actually requested.
-          entries.forEach(entry => {
-            if (entry) grammars.scopes.set(entry.scopeName, entry);
-          });
+          grammars.scopes.set(grammar.scopeName, grammar);
         }
         return grammar;
       });
@@ -225,7 +211,7 @@ export const createGrammarLoader = (importLanguage = getGrammar) => {
         (await Promise.all(pending.map(loadGrammar))).filter(Boolean)
       );
       pending = [...new Set(loaded.flatMap(grammar =>
-        grammar.dependencies || (selfContained.has(grammar) ? [] : [...getExternalLanguages(grammar)])
+        grammar.dependencies || [...getExternalLanguages(grammar)]
       ))].map(language => normalizeLanguage(language)).filter(language => !visited.has(language));
     }
 

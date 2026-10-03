@@ -58,7 +58,7 @@ const groups = {
   ],
   "Scripting & shells": [
     "shellscript", "shellsession", "fish", "nushell", "powershell", "bat", "awk", "tcl",
-    "applescript", "ahk", "viml", "berry", "talonscript"
+    "applescript", "ahk", "ahk2", "viml", "berry", "talonscript"
   ],
   "Data, config & docs": [
     "json", "jsonc", "json5", "jsonl", "yaml", "toml", "ini", "csv", "tsv", "hjson", "ron", "kdl",
@@ -98,9 +98,9 @@ const loadCanonicalGrammars = async () => {
     const name = file.replace(/\.mjs$/, "");
     let grammar;
     try {
-      grammar = (await import(pathToFileURL(path.join(grammarsDirectory, file)).href)).default.at(-1);
+      grammar = (await import(pathToFileURL(path.join(grammarsDirectory, file)).href)).default;
     } catch {
-      continue; // e.g. ahk2 throws because it exceeds grammar limits
+      continue;
     }
     if (grammar?.name === name) canonical.set(name, grammar);
   }

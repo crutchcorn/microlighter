@@ -1,2 +1,1 @@
-/* Alias mbt for moonbit */
-export { default } from './moonbit.mjs'
+export { default } from "./moonbit.mjs";

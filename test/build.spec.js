@@ -42,7 +42,7 @@ test("build emits declarations for every entry point", async () => {
     readFile(new URL("../dist/micro-lighter-element.min.d.ts", import.meta.url), "utf8")
   ]);
 
-  assert.match(grammar, /declare const grammar: Grammar\[\];/);
+  assert.match(grammar, /declare const grammar: Grammar;/);
   assert.match(grammar, /export default grammar;/);
   assert.match(minifiedBundle, /export \{\};/);
   assert.match(minifiedElementBundle, /class MicroLighter extends HTMLElement/);
@@ -55,8 +55,9 @@ test("build whitespace-minifies grammar and theme files", async () => {
   ]);
 
   assert.equal(grammar.trim().split("\n").length, 1);
-  // Entry points re-export from shared chunks; nothing may reach for the package.
-  assert.match(grammar, /export\{\w+ as default\}/);
+  // Entry points either inline the grammar or re-export it from a shared
+  // chunk; nothing may reach for the oniguruma-to-es package at runtime.
+  assert.match(grammar, /export\{\w+ as default\}|export default\{/);
   assert.doesNotMatch(grammar, /from\s*["']oniguruma-to-es["']/);
   assert.equal(theme.trim().split("\n").length, 1);
   assert.match(theme, /\[data-syntax-theme=(?:"github"|github)\]/);

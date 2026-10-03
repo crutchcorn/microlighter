@@ -1,2 +1,1 @@
-/* Alias justfile for just */
-export { default } from './just.mjs'
+export { default } from "./just.mjs";

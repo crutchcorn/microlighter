@@ -1,2 +1,1 @@
-/* Alias tres for gdresource */
-export { default } from './gdresource.mjs'
+export { default } from "./gdresource.mjs";

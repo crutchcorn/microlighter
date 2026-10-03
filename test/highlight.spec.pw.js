@@ -281,8 +281,10 @@ test.describe("MicroLighter demo site (docs/index.html)", () => {
   test("keeps single-line string literals on their own line", async ({ page }) => {
     await page.goto(HOMEPAGE, { waitUntil: "networkidle" });
 
+    // `first = "kept"` is not valid CSS or GraphQL, so those grammars (like
+    // VS Code) do not tokenize the quotes as strings.
     const languages = [
-      "asm", "c", "csharp", "css", "dart", "graphql",
+      "asm", "c", "csharp", "dart",
       "java", "kotlin", "lua", "swift", "toml"
     ];
     const unexpected = {};
@@ -325,12 +327,13 @@ test.describe("MicroLighter demo site (docs/index.html)", () => {
     expect(ranges.selector ?? []).toEqual([]);
   });
 
-  test("scopes multi-line selectors without their trailing whitespace", async ({ page }) => {
+  test("scopes multi-line selectors per line without trailing whitespace", async ({ page }) => {
     await page.goto(HOMEPAGE, { waitUntil: "networkidle" });
 
     const ranges = await highlightSnippet(page, "css", "a,\nb\n{\n  color: red;\n}\n");
 
-    expect(ranges.selector).toEqual(["a,\nb"]);
+    // TextMate grammars scan line by line; `meta.selector.css` ends at `$`.
+    expect(ranges.selector).toEqual(["a,", "b"]);
   });
 
   test("highlights a large stylesheet without pathological rescanning", async ({ page }) => {
