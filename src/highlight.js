@@ -314,9 +314,19 @@ export const highlightAll = async ({
    */
   let searches = new Map();
 
-  highlights.forEach((ranges, category) => {
-    if (CSS.highlights.get(category) === ranges) CSS.highlights.delete(category);
-    ranges.clear();
+  // Drop only ranges this scan replaces: its own blocks, blocks that have since
+  // lost their language, and ranges collapsed by DOM removal. Overlapping calls
+  // (e.g. several <micro-lighter> elements upgrading at once) would otherwise
+  // clobber blocks that gained a language after an earlier call started.
+  /** @type {Set<Element | null>} */
+  const rescanned = new Set(codeBlocks);
+  root.querySelectorAll(selector).forEach(block => {
+    if (!getLanguage(/** @type {HTMLElement} */ (block))) rescanned.add(block);
+  });
+  highlights.forEach(ranges => {
+    ranges.forEach(range => {
+      if (range.collapsed || rescanned.has(range.startContainer.parentElement)) ranges.delete(range);
+    });
   });
 
   /**
@@ -642,6 +652,7 @@ export const highlightAll = async ({
 
   highlights.forEach((ranges, category) => {
     if (ranges.size) CSS.highlights.set(category, ranges);
+    else if (CSS.highlights.get(category) === ranges) CSS.highlights.delete(category);
   });
 
   return codeBlocks;

@@ -244,6 +244,38 @@ test.describe("MicroLighter demo site (docs/index.html)", () => {
     });
   });
 
+  test("keeps blocks highlighted when overlapping calls see different languages", async ({ page }) => {
+    await page.goto(HOMEPAGE, { waitUntil: "networkidle" });
+
+    const highlighted = await page.evaluate(async () => {
+      const { highlightAll } = await import("/docs/microlighter/index.js");
+      const root = document.createElement("div");
+      root.innerHTML = [
+        '<pre><code id="early" class="language-css">a { color: red; }</code></pre>',
+        '<pre><code id="late">const late = true;</code></pre>'
+      ].join("");
+      document.body.append(root);
+
+      // Mirrors <micro-lighter> upgrade: a scan starts before a later element
+      // stamps its language, then a second scan starts that sees both blocks.
+      const first = highlightAll({ root });
+      root.querySelector("#late").dataset.language = "javascript";
+      const second = highlightAll({ root });
+      await Promise.all([first, second]);
+
+      const ids = new Set();
+      for (const highlight of CSS.highlights.values()) {
+        for (const range of highlight) {
+          const id = range.startContainer.parentElement?.closest("code")?.id;
+          if (id) ids.add(id);
+        }
+      }
+      return [...ids].sort();
+    });
+
+    expect(highlighted).toEqual(["early", "late"]);
+  });
+
   test("curates exactly six full static language samples", async ({ page }) => {
     await page.goto(HOMEPAGE, { waitUntil: "networkidle" });
 
