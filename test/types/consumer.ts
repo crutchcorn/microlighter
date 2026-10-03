@@ -1,5 +1,5 @@
 import { highlightAll, type HighlightAllOptions } from "../../dist/index.js";
-import javascript from "../../dist/grammars/javascript.mjs";
+import javascript from "../../dist/grammars/javascript.js";
 import type { MicroLighter } from "../../dist/micro-lighter-element.js";
 
 const options: HighlightAllOptions = { selector: "pre > code", root: document };

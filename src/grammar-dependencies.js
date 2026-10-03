@@ -10,7 +10,7 @@
 
 /**
  * Language aliases are shipped as re-export modules in `grammars/` (e.g.
- * `js.mjs` → `javascript.mjs`), so only the few that cannot be file names
+ * `js.js` → `javascript.js`), so only the few that cannot be file names
  * are mapped here.
  * @type {Record<string, string>}
  */
@@ -63,7 +63,7 @@ export const getExternalLanguages = value => {
  * @param {string} language
  * @returns {Promise<Grammar | null>}
  */
-const getGrammar = language => import(`./grammars/${language}.mjs`)
+const getGrammar = language => import(`./grammars/${language}.js`)
   .then(module => module.default)
   .catch(() => null);
 

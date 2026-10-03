@@ -88,14 +88,14 @@ const groupOf = new Map(
 
 /**
  * Load every grammar module and keep the ones whose file name is the grammar's
- * own name (alias files such as `js.mjs` re-export `javascript`).
+ * own name (alias files such as `js.js` re-export `javascript`).
  * @returns {Promise<Map<string, {displayName?: string, aliases?: string[]}>>}
  */
 const loadCanonicalGrammars = async () => {
   const canonical = new Map();
   for (const file of await readdir(grammarsDirectory)) {
-    if (!file.endsWith(".mjs")) continue;
-    const name = file.replace(/\.mjs$/, "");
+    if (!file.endsWith(".js")) continue;
+    const name = file.replace(/\.js$/, "");
     let grammar;
     try {
       grammar = (await import(pathToFileURL(path.join(grammarsDirectory, file)).href)).default;

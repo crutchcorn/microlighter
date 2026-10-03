@@ -11,8 +11,8 @@ const samplesDirectory = new URL("../docs/samples/", import.meta.url);
 const loadCanonicalGrammars = async () => {
   const canonical = [];
   for (const file of readdirSync(grammarsDirectory)) {
-    if (!file.endsWith(".mjs")) continue;
-    const name = file.replace(/\.mjs$/, "");
+    if (!file.endsWith(".js")) continue;
+    const name = file.replace(/\.js$/, "");
     const grammar = (await import(new URL(file, grammarsDirectory))).default;
     if (grammar.name === name) canonical.push(name);
   }

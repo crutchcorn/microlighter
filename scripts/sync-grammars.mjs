@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Precompile Shiki's source TextMate grammars (`@shikijs/langs`) into
-// `src/grammars/*.mjs` with oniguruma-to-es, keeping the TextMate semantics
+// `src/grammars/*.js` with oniguruma-to-es, keeping the TextMate semantics
 // the runtime scanner needs and that generic precompilation loses:
 //
 // - `\G` and `\A` anchors are emitted as variants, the way vscode-textmate
@@ -77,20 +77,27 @@ const findAnchors = pattern => {
 const disableAnchors = (pattern, anchors) =>
   pattern.replace(/\\(.)/gs, (escape, letter) => anchors.includes(letter) ? NEVER : escape);
 
+/** Compiled regex source code, emitted verbatim by `serialize`. */
+class Code {
+  /** @param {string} text */
+  constructor(text) {
+    this.text = text;
+  }
+}
+
 /**
  * @typedef {object} Compiled
- * @property {Map<string, string>} regexes Serialized regex source keyed by placeholder.
  * @property {string[]} failures Patterns that could not be converted.
  * @property {boolean} emulated Whether any regex needs `EmulatedRegExp`.
  */
 
 /**
- * Compile one TextMate pattern to JavaScript source, returning a placeholder
- * token that `serialize` swaps for the code.
+ * Compile one TextMate pattern to JavaScript source: a regex literal, an
+ * `EmulatedRegExp` construction, or an anchored variant set of those.
  * @param {string} pattern
  * @param {string} key Rule key the pattern came from.
  * @param {Compiled} compiled
- * @returns {string | null}
+ * @returns {Code | Record<string, Code[]> | null}
  */
 const compilePattern = (pattern, key, compiled) => {
   if (key === "end" || key === "while") {
@@ -106,34 +113,27 @@ const compilePattern = (pattern, key, compiled) => {
     }
     if (regex instanceof EmulatedRegExp) {
       compiled.emulated = true;
-      return `new EmulatedRegExp(${JSON.stringify(regex.source)}, ${JSON.stringify(regex.flags)}, ${JSON.stringify(regex.rawOptions)})`;
+      return new Code(`new EmulatedRegExp(${JSON.stringify(regex.source)}, ${JSON.stringify(regex.flags)}, ${inline(regex.rawOptions)})`);
     }
     // Normalize through the constructor so `/` and line terminators are escaped.
     const { source: literal, flags } = new RegExp(regex.source, regex.flags);
-    return `/${literal}/${flags}`;
+    return new Code(`/${literal}/${flags}`);
   };
 
   try {
     const { A, G } = findAnchors(pattern);
-    let code;
-    if (!A && !G) {
-      code = convert(pattern);
-    } else {
-      // Variant index: (`\A` allowed ? 2 : 0) + (`\G` allowed ? 1 : 0), with
-      // the unused dimension collapsed so single-anchor patterns have two.
-      const variants = [];
-      for (const allowA of A ? [false, true] : [null]) {
-        for (const allowG of G ? [false, true] : [null]) {
-          const disabled = (allowA === false ? "A" : "") + (allowG === false ? "G" : "");
-          variants.push(convert(disableAnchors(pattern, disabled)));
-        }
+    if (!A && !G) return convert(pattern);
+
+    // Variant index: (`\A` allowed ? 2 : 0) + (`\G` allowed ? 1 : 0), with
+    // the unused dimension collapsed so single-anchor patterns have two.
+    const variants = [];
+    for (const allowA of A ? [false, true] : [null]) {
+      for (const allowG of G ? [false, true] : [null]) {
+        const disabled = (allowA === false ? "A" : "") + (allowG === false ? "G" : "");
+        variants.push(convert(disableAnchors(pattern, disabled)));
       }
-      const kind = `${A ? "A" : ""}${G ? "G" : ""}`;
-      code = `{ ${kind}: [${variants.join(", ")}] }`;
     }
-    const token = `${BACKREFERENCE_OPEN}regex:${compiled.regexes.size}${BACKREFERENCE_CLOSE}`;
-    compiled.regexes.set(token, code);
-    return token;
+    return { [`${A ? "A" : ""}${G ? "G" : ""}`]: variants };
   } catch (error) {
     compiled.failures.push(`${key}: ${pattern.slice(0, 60)} (${/** @type {Error} */ (error).message})`);
     return null;
@@ -162,15 +162,49 @@ const transform = (value, compiled) => {
   return output;
 };
 
+/** @param {string} key */
+const formatKey = key => /^[A-Za-z_$][\w$]*$/.test(key) ? key : JSON.stringify(key);
+
 /**
- * Pretty-print a transformed grammar, splicing regex code back in.
- * @param {unknown} grammar
- * @param {Compiled} compiled
+ * Single-line JavaScript for small plain values (regex options, variants).
+ * @param {unknown} value
+ * @returns {string}
  */
-const serialize = (grammar, compiled) => JSON.stringify(grammar, null, 2)
-  .replace(new RegExp(`"(${BACKREFERENCE_OPEN}regex:\\d+${BACKREFERENCE_CLOSE})"`, "g"), (_match, token) =>
-    /** @type {string} */ (compiled.regexes.get(token))
-  );
+const inline = value => {
+  if (value instanceof Code) return value.text;
+  if (Array.isArray(value)) return `[${value.map(inline).join(", ")}]`;
+  if (value && typeof value === "object") {
+    return `{ ${Object.entries(value).map(([key, item]) => `${formatKey(key)}: ${inline(item)}`).join(", ")} }`;
+  }
+  return JSON.stringify(value);
+};
+
+/**
+ * Pretty-print a transformed grammar as a JavaScript object literal.
+ * @param {unknown} value
+ * @param {string} [indent]
+ * @returns {string}
+ */
+const serialize = (value, indent = "") => {
+  if (value instanceof Code) return value.text;
+  if (!value || typeof value !== "object") return JSON.stringify(value);
+
+  const inner = `${indent}  `;
+  if (Array.isArray(value)) {
+    if (!value.length) return "[]";
+    // Anchored variant sets stay on one line; rule lists get one entry per line.
+    if (value.every(item => item instanceof Code)) return inline(value);
+    return `[\n${value.map(item => `${inner}${serialize(item, inner)}`).join(",\n")}\n${indent}]`;
+  }
+
+  const entries = Object.entries(value);
+  if (!entries.length) return "{}";
+  // `{ include: "#x" }` rules are by far the most common; keep them compact.
+  if (entries.length === 1 && typeof entries[0][1] === "string") return inline(value);
+  return `{\n${entries
+    .map(([key, item]) => `${inner}${formatKey(key)}: ${serialize(item, inner)}`)
+    .join(",\n")}\n${indent}}`;
+};
 
 await rm(outputDirectory, { recursive: true, force: true });
 await mkdir(outputDirectory, { recursive: true });
@@ -188,17 +222,17 @@ for (const file of files) {
   const stem = file.replace(/\.mjs$/, "");
   const { default: entries } = await import(pathToFileURL(path.join(sourceDirectory, file)).href);
   const source = entries.at(-1);
-  const target = path.join(outputDirectory, `${stem}.mjs`);
+  const target = path.join(outputDirectory, `${stem}.js`);
 
   // Shiki ships alias files (e.g. `chpl.mjs`) that re-export another grammar.
   if (source.name !== stem) {
-    await writeFile(target, `export { default } from "./${source.name}.mjs";\n`);
+    await writeFile(target, `export { default } from "./${source.name}.js";\n`);
     aliased++;
     continue;
   }
 
   /** @type {Compiled} */
-  const compiled = { regexes: new Map(), failures: [], emulated: false };
+  const compiled = { failures: [], emulated: false };
   /** @type {Record<string, unknown>} */
   const grammar = {};
   for (const key of GRAMMAR_KEYS) {
@@ -207,7 +241,7 @@ for (const file of files) {
   grammar.dependencies = source.embeddedLangs ?? [];
 
   const header = compiled.emulated ? 'import { EmulatedRegExp } from "oniguruma-to-es";\n\n' : "";
-  await writeFile(target, `${header}export default ${serialize(grammar, compiled)};\n`);
+  await writeFile(target, `${header}export default ${serialize(grammar)};\n`);
   written++;
 
   if (compiled.failures.length) {

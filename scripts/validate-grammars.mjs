@@ -12,8 +12,8 @@ const directory = path.join(root, "src/grammars");
 const sourceDirectory = path.join(root, "node_modules/@shikijs/langs/dist");
 const PATTERN_KEYS = ["match", "begin", "end", "while"];
 
-const files = (await readdir(directory)).filter(file => file.endsWith(".mjs")).sort();
-const names = new Set(files.map(file => file.replace(/\.mjs$/, "")));
+const files = (await readdir(directory)).filter(file => file.endsWith(".js")).sort();
+const names = new Set(files.map(file => file.replace(/\.js$/, "")));
 /** @type {string[]} */
 const problems = [];
 /** @type {string[]} */
@@ -87,7 +87,7 @@ const walk = (value, where) => {
 };
 
 for (const file of files) {
-  const name = file.replace(/\.mjs$/, "");
+  const name = file.replace(/\.js$/, "");
   let grammar;
   try {
     ({ default: grammar } = await import(pathToFileURL(path.join(directory, file)).href));
@@ -112,7 +112,7 @@ for (const file of files) {
   // source grammar resolves them; otherwise they are upstream's own.
   const dangling = danglingIncludes(grammar);
   if (dangling.size) {
-    const source = (await import(pathToFileURL(path.join(sourceDirectory, file)).href)).default.at(-1);
+    const source = (await import(pathToFileURL(path.join(sourceDirectory, `${name}.mjs`)).href)).default.at(-1);
     const upstream = danglingIncludes(source);
     for (const include of dangling) {
       (upstream.has(include) ? upstreamDangling : problems)

@@ -17,7 +17,7 @@ test("build emits matching unminified and minified auto-run bundles", async () =
 test("keeps only non-file-name aliases in the core bundle", async () => {
   const [bundle, alias] = await Promise.all([
     readFile(new URL("../dist/microlighter.min.js", import.meta.url), "utf8"),
-    readFile(new URL("../dist/grammars/js.mjs", import.meta.url), "utf8")
+    readFile(new URL("../dist/grammars/js.js", import.meta.url), "utf8")
   ]);
 
   assert.match(bundle, /"c#":"csharp"/);
@@ -40,7 +40,7 @@ test("build emits complete custom-element bundles", async () => {
 
 test("build emits declarations for every entry point", async () => {
   const [grammar, minifiedBundle, minifiedElementBundle] = await Promise.all([
-    readFile(new URL("../dist/grammars/javascript.d.mts", import.meta.url), "utf8"),
+    readFile(new URL("../dist/grammars/javascript.d.ts", import.meta.url), "utf8"),
     readFile(new URL("../dist/microlighter.min.d.ts", import.meta.url), "utf8"),
     readFile(new URL("../dist/micro-lighter-element.min.d.ts", import.meta.url), "utf8")
   ]);
@@ -53,7 +53,7 @@ test("build emits declarations for every entry point", async () => {
 
 test("build whitespace-minifies grammar and theme files", async () => {
   const [grammar, theme] = await Promise.all([
-    readFile(new URL("../dist/grammars/javascript.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../dist/grammars/javascript.js", import.meta.url), "utf8"),
     readFile(new URL("../dist/themes/github.css", import.meta.url), "utf8")
   ]);
 

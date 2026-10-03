@@ -6,15 +6,15 @@ import {
   getExternalLanguages,
   normalizeLanguage
 } from "../src/grammar-dependencies.js";
-import cpp from "../src/grammars/cpp.mjs";
-import html from "../src/grammars/html.mjs";
-import markdown from "../src/grammars/markdown.mjs";
-import objectiveC from "../src/grammars/objective-c.mjs";
-import scss from "../src/grammars/scss.mjs";
-import tsx from "../src/grammars/tsx.mjs";
-import typescript from "../src/grammars/typescript.mjs";
-import svelte from "../src/grammars/svelte.mjs";
-import vue from "../src/grammars/vue.mjs";
+import cpp from "../src/grammars/cpp.js";
+import html from "../src/grammars/html.js";
+import markdown from "../src/grammars/markdown.js";
+import objectiveC from "../src/grammars/objective-c.js";
+import scss from "../src/grammars/scss.js";
+import tsx from "../src/grammars/tsx.js";
+import typescript from "../src/grammars/typescript.js";
+import svelte from "../src/grammars/svelte.js";
+import vue from "../src/grammars/vue.js";
 
 test("finds external grammar languages in nested rules", () => {
   const grammar = {
