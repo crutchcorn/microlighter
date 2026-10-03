@@ -151,23 +151,20 @@ const addRange = (node, start, end, scopes) => {
 const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * Compile a plain-string pattern, or rebuild a precompiled regex with a new
- * source. Rebuilding goes through the constructor rather than copying because
- * lazily compiled EmulatedRegExps have an empty underlying pattern until first
- * use; `rawOptions` is ignored by plain RegExp.
- * @param {string | RegExp} pattern
- * @param {string} [source]
+ * Rebuild a precompiled regex with a new source. This goes through the
+ * constructor rather than copying because lazily compiled EmulatedRegExps have
+ * an empty underlying pattern until first use; `rawOptions` is ignored by
+ * plain RegExp.
+ * @param {RegExp} regex
+ * @param {string} source
  * @returns {RegExp}
  */
-const compile = (pattern, source) => {
-  if (typeof pattern === "string") return new RegExp(source ?? pattern, "dgm");
-  if (source === undefined) return pattern;
-  return new (/** @type {new (s: string, f: string, o?: unknown) => RegExp} */ (pattern.constructor))(
+const rebuild = (regex, source) =>
+  new (/** @type {new (s: string, f: string, o?: unknown) => RegExp} */ (regex.constructor))(
     source,
-    pattern.flags,
-    /** @type {any} */ (pattern).rawOptions
+    regex.flags,
+    /** @type {any} */ (regex).rawOptions
   );
-};
 
 /**
  * Pick the compiled variant of a pattern for the current position: `\A` may
@@ -175,52 +172,34 @@ const compile = (pattern, source) => {
  * @param {Exclude<GrammarPattern, null>} pattern
  * @param {boolean} firstLine
  * @param {boolean} atAnchor
- * @returns {string | RegExp}
+ * @returns {RegExp}
  */
 const select = (pattern, firstLine, atAnchor) => {
-  if (typeof pattern === "string" || pattern instanceof RegExp) return pattern;
+  if (pattern instanceof RegExp) return pattern;
   if ("A" in pattern) return pattern.A[+firstLine];
   if ("G" in pattern) return pattern.G[+atAnchor];
   return pattern.AG[(firstLine ? 2 : 0) + (atAnchor ? 1 : 0)];
 };
 
 /**
- * Replace TextMate end-pattern backreferences with escaped begin captures.
- * Precompiled grammars carry them as `\uE000N\uE001` markers (see
- * scripts/sync-grammars.mjs); string patterns use the raw `\N` form.
+ * Replace TextMate end-pattern backreferences, carried as `\uE000N\uE001`
+ * markers (see scripts/sync-grammars.mjs), with escaped begin captures.
  * @param {Exclude<GrammarPattern, null>} pattern
  * @param {Match} beginMatch
  * @returns {Exclude<GrammarPattern, null>}
  */
 const expandEnd = (pattern, beginMatch) => {
-  /** @param {string | RegExp} variant */
-  const expand = variant => {
-    const source = typeof variant === "string" ? variant : variant.source;
-    const references = typeof variant === "string" ? /\\(\d+)/g : /\uE000(\d+)\uE001/g;
-    if (!references.test(source)) return variant;
-    return compile(variant, source.replace(references, (_reference, index) =>
+  /** @param {RegExp} variant */
+  const expand = variant => variant.source.includes("\uE000")
+    ? rebuild(variant, variant.source.replace(/\uE000(\d+)\uE001/g, (_reference, index) =>
       beginMatch[index] === undefined ? "" : escapeRegex(beginMatch[index])
-    ));
-  };
+    ))
+    : variant;
 
-  if (typeof pattern === "string" || pattern instanceof RegExp) return expand(pattern);
+  if (pattern instanceof RegExp) return expand(pattern);
   const [kind, variants] = /** @type {[string, RegExp[]]} */ (Object.entries(pattern)[0]);
   return /** @type {AnchoredPattern} */ ({ [kind]: variants.map(expand) });
 };
-
-/**
- * Substitute `$1` / `${1:/downcase}` capture references in a scope name.
- * @param {string | undefined} name
- * @param {Match} match
- * @returns {string | undefined}
- */
-const resolveName = (name, match) => name?.replace(
-  /\$(\d+)|\$\{(\d+):\/(downcase|upcase)\}/g,
-  (_reference, index, modifiedIndex, modifier) => {
-    const value = match[index ?? modifiedIndex] ?? "";
-    return modifier === "downcase" ? value.toLowerCase() : modifier === "upcase" ? value.toUpperCase() : value;
-  }
-);
 
 /** @typedef {(scopes: string[]) => boolean} ScopeMatcher */
 
@@ -328,8 +307,6 @@ export const highlightAll = async ({
     normalizeLanguage(getLanguage(codeBlock), languageAliases)
   );
   const grammars = await loadGrammars(languages);
-  /** @type {Map<string, RegExp>} */
-  const compiledStrings = new Map();
   /**
    * Last search per regex on the current line, reused when it started at or
    * before the new position and found nothing or a match at or after it.
@@ -364,20 +341,14 @@ export const highlightAll = async ({
   /**
    * Find the next match of a pattern on the current line. `anchor` is where
    * the enclosing rule's begin match ended, i.e. TextMate's `\G`.
-   * @param {GrammarPattern} pattern
+   * @param {Exclude<GrammarPattern, null>} pattern
    * @param {Line} line
    * @param {number} position
    * @param {number} anchor
    * @returns {Match | null}
    */
   const exec = (pattern, line, position, anchor) => {
-    if (!pattern) return null;
-    const atAnchor = position === anchor;
-    let regex = select(pattern, line.start === 0, atAnchor);
-    if (typeof regex === "string") {
-      if (!compiledStrings.has(regex)) compiledStrings.set(regex, compile(regex));
-      regex = /** @type {RegExp} */ (compiledStrings.get(regex));
-    }
+    const regex = select(pattern, line.start === 0, position === anchor);
 
     // Sticky and clip-search regexes (oniguruma-to-es's `\G` emulation, only
     // ever selected at the anchor) depend on the exact start position.
@@ -478,7 +449,7 @@ export const highlightAll = async ({
     let winner = null;
 
     for (const context of contexts) {
-      const pattern = /** @type {GrammarPattern} */ (context.rule.match || context.rule.begin);
+      const pattern = /** @type {Exclude<GrammarPattern, null>} */ (context.rule.match || context.rule.begin);
       const match = exec(pattern, line, position, anchor);
       if (!match) continue;
       if (match.index === position) return { ...context, match };
@@ -497,10 +468,8 @@ export const highlightAll = async ({
    */
   const closeRule = (node, entry, contentEnd, end) => {
     const { rule, begin } = /** @type {{rule: GrammarRule, begin: Match}} */ (entry);
-    const name = resolveName(rule.name, begin);
-    const contentName = resolveName(rule.contentName, begin);
-    if (name) addRange(node, begin.indices[0][0], end, name);
-    if (contentName) addRange(node, begin.indices[0][1], contentEnd, contentName);
+    if (rule.name) addRange(node, begin.indices[0][0], end, rule.name);
+    if (rule.contentName) addRange(node, begin.indices[0][1], contentEnd, rule.contentName);
   };
 
   /**
@@ -553,8 +522,7 @@ export const highlightAll = async ({
       Object.entries(captures).forEach(([index, capture]) => {
         const offsets = match.indices[+index];
         if (!offsets || offsets[0] === offsets[1]) return;
-        const name = resolveName(capture.name, match);
-        if (name) addRange(node, ...offsets, name);
+        if (capture.name) addRange(node, ...offsets, capture.name);
         if (!capture.patterns) return;
 
         const saved = searches;
@@ -622,8 +590,7 @@ export const highlightAll = async ({
         const end = match.indices[0][1];
 
         if (rule.match) {
-          const name = resolveName(rule.name, match);
-          if (name) addRange(node, ...match.indices[0], name);
+          if (rule.name) addRange(node, ...match.indices[0], rule.name);
           addCaptures(match, line, { ...top, grammar: ruleGrammar, repository }, rule.captures);
           if (end === position) return;
           position = end;
@@ -635,7 +602,7 @@ export const highlightAll = async ({
           rules: rule.patterns || [],
           grammar: ruleGrammar,
           repository,
-          scopes: [...top.scopes, resolveName(rule.name, match), resolveName(rule.contentName, match)]
+          scopes: [...top.scopes, rule.name, rule.contentName]
             .flatMap(scope => scope ? scope.split(" ") : []),
           rule,
           begin: match,

@@ -48,13 +48,14 @@ test("recognizes source and text scopes but ignores unsupported includes", () =>
   assert.deepEqual([...getExternalLanguages(grammar)], ["html", "css"]);
 });
 
-test("normalizes language aliases and preserves canonical names", () => {
-  assert.equal(normalizeLanguage("js"), "javascript");
-  // jsx and sass are standalone Shiki grammars, not aliases.
-  assert.equal(normalizeLanguage("jsx"), "jsx");
-  assert.equal(normalizeLanguage("sass"), "sass");
+test("normalizes only aliases that cannot be grammar file names", () => {
+  assert.equal(normalizeLanguage("c#"), "csharp");
+  assert.equal(normalizeLanguage("c++"), "cpp");
+  // File-name-safe aliases resolve through re-export modules instead.
+  assert.equal(normalizeLanguage("js"), "js");
   assert.equal(normalizeLanguage("python"), "python");
   assert.equal(normalizeLanguage("custom-language"), "custom-language");
+  assert.equal(normalizeLanguage("ecmascript", { ecmascript: "javascript" }), "javascript");
 });
 
 test("declares embedded grammars as dependencies of each precompiled grammar", () => {
@@ -189,12 +190,12 @@ test("dynamically loads every new canonical grammar and transitively resolves it
   assert.equal(loaded.scopes.get("source.tsx"), loaded.languages.tsx);
 });
 
-test("loads normalized first-party aliases by canonical language", async () => {
+test("loads first-party aliases through their re-export modules", async () => {
   const load = createGrammarLoader();
-  const loaded = await load([normalizeLanguage("js")]);
+  const loaded = await load(["js", "javascript"]);
 
-  assert.ok(loaded.languages.javascript);
-  assert.equal(loaded.languages.js, undefined);
+  assert.equal(loaded.languages.js, loaded.languages.javascript);
+  assert.equal(loaded.languages.js.scopeName, "source.js");
   assert.equal(loaded.scopes.get("source.js"), loaded.languages.javascript);
 });
 

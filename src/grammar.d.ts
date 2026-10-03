@@ -23,11 +23,11 @@ export type GrammarValue =
 export type AnchoredPattern = { A: RegExp[] } | { G: RegExp[] } | { AG: RegExp[] };
 
 /**
- * A rule pattern: a TextMate regex source string (compiled at runtime), a
- * precompiled `RegExp` (possibly an oniguruma-to-es `EmulatedRegExp`), an
- * anchored variant set, or `null` for a pattern that could not be compiled.
+ * A rule pattern: a precompiled `RegExp` (possibly an oniguruma-to-es
+ * `EmulatedRegExp`), an anchored variant set, or `null` for a pattern that
+ * could not be compiled.
  */
-export type GrammarPattern = string | RegExp | AnchoredPattern | null;
+export type GrammarPattern = RegExp | AnchoredPattern | null;
 
 /** A capture group in a TextMate rule, keyed by capture index. */
 export interface GrammarCaptures {
